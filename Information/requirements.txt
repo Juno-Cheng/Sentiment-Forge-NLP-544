@@ -1,0 +1,11 @@
+# HW1 reference environment: Python 3.12.
+# Install NLTK stopwords and wordnet before running; never download at import.
+numpy==2.3.5
+scipy==1.18.1
+pandas==2.2.3
+scikit-learn==1.9.1
+nltk==3.10.3
+contractions==0.1.73
+textsearch==0.0.24
+pyahocorasick==2.3.1
+anyascii==0.3.3
