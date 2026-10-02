@@ -5,6 +5,8 @@ Use the handout and requirements.txt. Do not download resources at runtime.
 This is an unimplemented student starter, not a solution or an autograder.
 """
 import csv
+import math
+from collections import Counter
 import pandas as pd
 import numpy as np
 import re
@@ -149,20 +151,6 @@ def train_model_naive_bayes(X_train, y_train):
     model.fit(X_train, y_train)
     return model
 
-#--- evaluate_model helpers (Section 6) ---
-def evaluate_model(model, X, y):
-    # Get the predictions
-    preds = model.predict(X)
-
-    # Calculate the accuracy, precision, recall, and f1 score
-    accuracy = accuracy_score(y, preds)
-    precision = precision_score(y, preds, pos_label=1, zero_division=0)
-    recall = recall_score(y, preds, pos_label=1, zero_division=0)
-    f1 = f1_score(y, preds, pos_label=1, zero_division=0)
-
-    # Return the results
-    return {"accuracy": accuracy, "precision": precision, "recall": recall, "f1": f1}
-
 #=============== HELPER FUNCTIONS ===============
 def prepare_data(path, n_per_class=100000):
     """Return (train_df, test_df, stats), as specified in Section 1/interface."""
@@ -241,29 +229,80 @@ def train_model(name, X_train, y_train):
     else:
         raise ValueError(f"Invalid model name: {name}")
 
-
 def evaluate_model(model, X, y):
     """Return unrounded accuracy, precision, recall, f1 in a dictionary."""
-    return evaluate_model(model, X, y)
+    preds = model.predict(X)
+    return {
+        "accuracy": accuracy_score(y, preds),
+        "precision": precision_score(
+            y, preds, average="binary", pos_label=1, zero_division=0
+        ),
+        "recall": recall_score(
+            y, preds, average="binary", pos_label=1, zero_division=0
+        ),
+        "f1": f1_score(y, preds, average="binary", pos_label=1, zero_division=0),
+    }
 
 
 def fit_bigram(train_texts, min_count=3):
     """Return a dictionary with vocab, bigrams, contexts; omit zero counts."""
     # 1. tokenize each review (whitespace); build vocab (count >= min_count)
+    tokenized = [text.split() for text in train_texts]
+    word_counts = Counter()
+    for tokens in tokenized:
+        word_counts.update(tokens)
+    retained = {w for w, c in word_counts.items() if c >= min_count}
+
     # 2. V = retained words + <unk> + </s>  (<s> is context only, not in V)
+    vocab = retained | {"<unk>", "</s>"}
+
     # 3. map OOV -> <unk>; wrap each seq with <s> ... </s>
     # 4. count bigrams C(h,w) and contexts C(h); omit zeros
-    # return {"vocab": V, "bigrams": ..., "contexts": ...}
-    raise NotImplementedError
+    bigrams = Counter()
+    contexts = Counter()
+    # iterate over each tokenized text
+    for tokens in tokenized:
+        mapped = [w if w in retained else "<unk>" for w in tokens] # map OOV -> <unk>
+        seq = ["<s>"] + mapped + ["</s>"] # wrap each seq with <s> ... </s>
+
+        # count bigrams C(h,w) and contexts C(h); omit zeros
+        for i in range(len(seq) - 1):
+            h, w = seq[i], seq[i + 1]
+            bigrams[(h, w)] += 1
+            contexts[h] += 1
+
+    return {"vocab": vocab, "bigrams": bigrams, "contexts": contexts}
 
 
 def evaluate_bigram(model, test_texts, k=1.0):
     """Return a dictionary with unseen, n_tokens, add-k perplexity; do not refit."""
+    vocab = model["vocab"]
+    bigrams = model["bigrams"]
+    contexts = model["contexts"]
+    retained = vocab - {"<unk>", "</s>"}
+    v_size = len(vocab)
+
     # 1. map test with model vocab (<unk>, <s>, </s>); do not update counts
-    # 2. unseen = transitions with C(h,w)==0; n_tokens = N predicted tokens
-    # 3. P_k(w|h) = (C(h,w)+k) / (C(h)+k|V|); corpus perplexity = exp(-1/N * sum log P)
-    # return {"unseen": ..., "n_tokens": ..., "perplexity": ...}
-    raise NotImplementedError
+    unseen = 0
+    n_tokens = 0
+    log_sum = 0.0
+    for text in test_texts:
+        tokens = text.split()
+        mapped = [w if w in retained else "<unk>" for w in tokens]
+        seq = ["<s>"] + mapped + ["</s>"]
+        # 2–3. score each transition with add-k; count unseen / N
+        for i in range(len(seq) - 1):
+            h, w = seq[i], seq[i + 1]
+            c_hw = bigrams.get((h, w), 0)
+            c_h = contexts.get(h, 0)
+            if c_hw == 0:
+                unseen += 1
+            p = (c_hw + k) / (c_h + k * v_size)
+            log_sum += math.log(p)
+            n_tokens += 1
+
+    perplexity = math.exp(-log_sum / n_tokens)
+    return {"unseen": unseen, "n_tokens": n_tokens, "perplexity": perplexity}
 
 #=============== Unit Test Code  ===============
 
