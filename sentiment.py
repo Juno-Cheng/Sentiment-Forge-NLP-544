@@ -151,6 +151,64 @@ def train_model_naive_bayes(X_train, y_train):
     model.fit(X_train, y_train)
     return model
 
+#--- print functions (Section 6) ---
+def print_data_and_features(stats):
+    """
+    1. Data and features
+    Positive reviews: <integer>
+    Negative reviews: <integer>
+    Neutral reviews: <integer>
+    Average length before cleaning: <value>
+    Average length after cleaning: <value>
+    Average length before preprocessing: <value>
+    Average length after preprocessing: <value>
+    TF-IDF matrix shape: (<integer>, <integer>)
+    """
+    print(f"Positive reviews: {stats['class_counts']['positive']}")
+    print(f"Negative reviews: {stats['class_counts']['negative']}")
+    print(f"Neutral reviews: {stats['class_counts']['neutral']}")
+    print(f"Average length before cleaning: {stats['average_length_before_cleaning']}")
+    print(f"Average length after cleaning: {stats['average_length_after_cleaning']}")
+    print(f"Average length before preprocessing: {stats['average_length_before_preprocessing']}")
+    print(f"Average length after preprocessing: {stats['average_length_after_preprocessing']}")
+    print(f"TF-IDF matrix shape: {stats['tfidf_matrix_shape']}")
+
+def print_model_performance(model, X_train, y_train, X_test, y_test):
+    """
+    2. Model Performance
+    <Model> Training Accuracy: <value>
+    <Model> Training Precision: <value>
+    <Model> Training Recall: <value>
+    <Model> Training F1-score: <value>
+    <Model> Testing Accuracy: <value>
+    <Model> Testing Precision: <value>
+    <Model> Testing Recall: <value>
+    <Model> Testing F1-score: <value>
+    """
+    print(f"{model} Training Accuracy: {model.score(X_train, y_train)}")
+    print(f"{model} Training Precision: {precision_score(y_train, model.predict(X_train), average='binary', pos_label=1, zero_division=0)}")
+    print(f"{model} Training Recall: {recall_score(y_train, model.predict(X_train), average='binary', pos_label=1, zero_division=0)}")
+    print(f"{model} Training F1-score: {f1_score(y_train, model.predict(X_train), average='binary', pos_label=1, zero_division=0)}")
+    print(f"{model} Testing Accuracy: {model.score(X_test, y_test)}")
+    print(f"{model} Testing Precision: {precision_score(y_test, model.predict(X_test), average='binary', pos_label=1, zero_division=0)}")
+    print(f"{model} Testing Recall: {recall_score(y_test, model.predict(X_test), average='binary', pos_label=1, zero_division=0)}")
+    print(f"{model} Testing F1-score: {f1_score(y_test, model.predict(X_test), average='binary', pos_label=1, zero_division=0)}")
+
+def print_bigram_model_and_smoothing(model):
+    """
+    3. Bigram Model & Smoothing (Add-k)
+    Bigram vocabulary size: <integer>
+    Bigram unseen test transitions: <integer>
+    Bigram test perplexity: <value>
+    Bigram test perplexity (k=0.1): <value>
+    Bigram test perplexity (k=0.01): <value>
+    """
+    print(f"Bigram vocabulary size: {len(model['vocab'])}")
+    print(f"Bigram unseen test transitions: {model['unseen']}")
+    print(f"Bigram test perplexity: {model['perplexity']}")
+    print(f"Bigram test perplexity (k=0.1): {model['perplexity_k_0_1']}")
+    print(f"Bigram test perplexity (k=0.01): {model['perplexity_k_0_01']}")
+
 #=============== HELPER FUNCTIONS ===============
 def prepare_data(path, n_per_class=100000):
     """Return (train_df, test_df, stats), as specified in Section 1/interface."""
@@ -243,11 +301,13 @@ def evaluate_model(model, X, y):
         "f1": f1_score(y, preds, average="binary", pos_label=1, zero_division=0),
     }
 
-
 def fit_bigram(train_texts, min_count=3):
     """Return a dictionary with vocab, bigrams, contexts; omit zero counts."""
     # 1. tokenize each review (whitespace); build vocab (count >= min_count)
-    tokenized = [text.split() for text in train_texts]
+    # tokenized: list of reviews; each review is a list of words, e.g. ["the", "pen", "is", "good"]
+    tokenized = []
+    for text in train_texts:
+        tokenized.append(text.split())
     word_counts = Counter()
     for tokens in tokenized:
         word_counts.update(tokens)
@@ -272,7 +332,6 @@ def fit_bigram(train_texts, min_count=3):
             contexts[h] += 1
 
     return {"vocab": vocab, "bigrams": bigrams, "contexts": contexts}
-
 
 def evaluate_bigram(model, test_texts, k=1.0):
     """Return a dictionary with unseen, n_tokens, add-k perplexity; do not refit."""
@@ -305,23 +364,69 @@ def evaluate_bigram(model, test_texts, k=1.0):
     return {"unseen": unseen, "n_tokens": n_tokens, "perplexity": perplexity}
 
 #=============== Unit Test Code  ===============
+def test_clean_and_preprocess():
+    # Local check from handout (Section 3). Do not call from run_experiment.
+    # Average length prints belong in run_experiment only (37 required lines).
+    s = "These pens aren't reliable."
+    cleaned = clean_review(s)
+    preprocessed = preprocess_review(cleaned)
+    expected_cleaned = "these pens are not reliable"
+    expected_preprocessed = "pen not reliable"
+    print(repr(cleaned))
+    print(repr(preprocessed))
+    if cleaned == expected_cleaned and preprocessed == expected_preprocessed:
+        print("PASSED: clean_review and preprocess_review")
+    else:
+        print("FAILED: clean_review and preprocess_review")
+        print(f"  expected cleaned: {expected_cleaned!r}")
+        print(f"  expected preprocessed: {expected_preprocessed!r}")
 
 #=============== MAIN FUNCTION ===============
 def run_experiment(path="data.tsv", n_per_class=100000,
                    lm_train_size=5000, lm_test_size=1000):
     """Run the pipeline, print the 37 required lines, and return None."""
 
+    # Check Path and Unit Test Code
+    test_clean_and_preprocess()
+    if path is None:
+        raise ValueError("Path is required")
+
     # 1. Dataset Preparation
+    train_df, test_df, stats = prepare_data(path, n_per_class)
 
-    # 2. Data Cleaning
+    print_data_and_features(stats)
+    # ===============================
 
-    # 3. Preprocessing
+    # 2. Data Cleaning - Take every review in the train_df and test_df and clean and preprocess it
+    train_df["cleaned"] = train_df["review"].apply(clean_review)
+    test_df["cleaned"] = test_df["review"].apply(clean_review)
+
+    # 3. Preprocessing - Preprocessing means removing stopwords and lemmatizing the words (simplifing text)
+    train_df["preprocessed"] = train_df["cleaned"].apply(preprocess_review)
+    test_df["preprocessed"] = test_df["cleaned"].apply(preprocess_review)
 
     # 4. Feature Extraction
+    vectorizer, X_train, X_test = extract_features(train_df["preprocessed"], test_df["preprocessed"])
 
+    # ===============================
     # 5. Models (Perceptron, Logistic Regression, Naive Bayes)
+    perceptron = train_model("Perceptron", X_train, train_df["label"])
+    logistic_regression = train_model("Logistic Regression", X_train, train_df["label"])
+    naive_bayes = train_model("Naive Bayes", X_train, train_df["label"])
+
+    print_model_performance(perceptron, X_train, train_df["label"], X_test, test_df["label"])
+    print_model_performance(logistic_regression, X_train, train_df["label"], X_test, test_df["label"])
+    print_model_performance(naive_bayes, X_train, train_df["label"], X_test, test_df["label"])
+
+    # ===============================
 
     # 6. Bigram Model & Smoothing (Add-k)
+
+    # Print the 37 required lines
+
+    
+
+  
 
     raise NotImplementedError
 
