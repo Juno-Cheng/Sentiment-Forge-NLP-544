@@ -5,32 +5,38 @@ Use the handout and requirements.txt. Do not download resources at runtime.
 This is an unimplemented student starter, not a solution or an autograder.
 """
 import csv
+import html
 import math
-from collections import Counter
-import pandas as pd
-import numpy as np
 import re
-import nltk
+from collections import Counter
+
+import contractions
+import pandas as pd
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import Perceptron
-from sklearn.linear_model import LogisticRegression
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.linear_model import LogisticRegression, Perceptron
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
-import html
-import contractions
+from sklearn.naive_bayes import MultinomialNB
 
 #=============== Custom Functions ===============
 #--- prepare_data helpers (Section 1) ---
-def prepare_data_read_data(path): # read the data from the file and return a pandas dataframe
-    df = pd.read_csv(path, sep="\t", dtype=str, quoting=csv.QUOTE_NONE, keep_default_na=False, on_bad_lines="skip", usecols=["review_body", "star_rating"])
+def prepare_data_read_data(path):  # read TSV; keep only review + rating columns
+    df = pd.read_csv(
+        path,
+        sep="\t",
+        dtype=str,
+        quoting=csv.QUOTE_NONE,
+        keep_default_na=False,
+        on_bad_lines="skip",
+        usecols=["review_body", "star_rating"],
+    )
     df = df.rename(columns={"review_body": "review", "star_rating": "rating"})
     return df
 
 def prepare_data_convert_and_remove_invalid_rows(df):
-    #convert the rating to a numeric value
+    # convert the rating to a numeric value
     df["rating"] = pd.to_numeric(df["rating"], errors="coerce")
 
     # filter out the rows where the review is empty or the rating is not between 1 and 5
@@ -39,7 +45,7 @@ def prepare_data_convert_and_remove_invalid_rows(df):
     # count the number of rows that were excluded
     excluded_rows = int((~valid_rows).sum())
 
-    # filter out the rows where the review is empty or the rating is not between 1 and 5
+    # keep only valid rows
     df = df.loc[valid_rows].copy()
 
     # convert the rating to an integer
@@ -74,7 +80,7 @@ def prepare_data_train_test_split(df, n_per_class):
         ["review", "rating", "label"]
     ]
 
-    # Split the data into train and test sets
+    # Split the data into train and test sets (80% train, 20% test - both with negative and positive labels)
     train_df, test_df = train_test_split(
         sampled,
         test_size=0.2,
@@ -85,7 +91,7 @@ def prepare_data_train_test_split(df, n_per_class):
 
 #--- clean_review helpers (Section 2) ---
 def clean_review_unescape_html(text):
-    text = html.unescape(text) # Given by the handout
+    text = html.unescape(text)  # given by the handout
     text = text.lower()
     return text
 
@@ -109,17 +115,18 @@ def clean_review_keep_only_a_z_and_spaces_collapse_whitespace_runs_strip_ends(te
     return text
 
 #--- preprocess_review helpers (Section 3) ---
+_STOPWORDS = set(stopwords.words("english")) - {"no", "nor", "not"}
+_LEMMATIZER = WordNetLemmatizer()
+
 def preprocess_review_split_and_remove_stopwords(text):
     # (a) split on whitespace; drop NLTK English stopwords except no, nor, not
     tokens = text.split()
-    stop = set(stopwords.words("english")) - {"no", "nor", "not"}
-    tokens = [token for token in tokens if token not in stop]
+    tokens = [token for token in tokens if token not in _STOPWORDS]
     return tokens
 
 def preprocess_review_lemmatize(tokens):
     # (b) WordNetLemmatizer.lemmatize each token (default noun); no POS tagging
-    lemmatizer = WordNetLemmatizer()
-    tokens = [lemmatizer.lemmatize(token) for token in tokens]
+    tokens = [_LEMMATIZER.lemmatize(token) for token in tokens]
     return tokens
 
 def preprocess_review_join(tokens):
@@ -151,65 +158,37 @@ def train_model_naive_bayes(X_train, y_train):
     model.fit(X_train, y_train)
     return model
 
-#--- print functions (Section 6) ---
-def print_data_and_features(stats):
-    """
-    1. Data and features
-    Positive reviews: <integer>
-    Negative reviews: <integer>
-    Neutral reviews: <integer>
-    Average length before cleaning: <value>
-    Average length after cleaning: <value>
-    Average length before preprocessing: <value>
-    Average length after preprocessing: <value>
-    TF-IDF matrix shape: (<integer>, <integer>)
-    """
+#--- print functions (required 37 lines) ---
+def print_data_and_features(stats, avg_before_clean, avg_after_clean,
+                            avg_before_pre, avg_after_pre, tfidf_shape):
     print(f"Positive reviews: {stats['class_counts']['positive']}")
     print(f"Negative reviews: {stats['class_counts']['negative']}")
     print(f"Neutral reviews: {stats['class_counts']['neutral']}")
-    print(f"Average length before cleaning: {stats['average_length_before_cleaning']}")
-    print(f"Average length after cleaning: {stats['average_length_after_cleaning']}")
-    print(f"Average length before preprocessing: {stats['average_length_before_preprocessing']}")
-    print(f"Average length after preprocessing: {stats['average_length_after_preprocessing']}")
-    print(f"TF-IDF matrix shape: {stats['tfidf_matrix_shape']}")
+    print(f"Average length before cleaning: {avg_before_clean:.4f}")
+    print(f"Average length after cleaning: {avg_after_clean:.4f}")
+    print(f"Average length before preprocessing: {avg_before_pre:.4f}")
+    print(f"Average length after preprocessing: {avg_after_pre:.4f}")
+    print(f"TF-IDF matrix shape: ({tfidf_shape[0]}, {tfidf_shape[1]})")
 
-def print_model_performance(model, X_train, y_train, X_test, y_test):
-    """
-    2. Model Performance
-    <Model> Training Accuracy: <value>
-    <Model> Training Precision: <value>
-    <Model> Training Recall: <value>
-    <Model> Training F1-score: <value>
-    <Model> Testing Accuracy: <value>
-    <Model> Testing Precision: <value>
-    <Model> Testing Recall: <value>
-    <Model> Testing F1-score: <value>
-    """
-    print(f"{model} Training Accuracy: {model.score(X_train, y_train)}")
-    print(f"{model} Training Precision: {precision_score(y_train, model.predict(X_train), average='binary', pos_label=1, zero_division=0)}")
-    print(f"{model} Training Recall: {recall_score(y_train, model.predict(X_train), average='binary', pos_label=1, zero_division=0)}")
-    print(f"{model} Training F1-score: {f1_score(y_train, model.predict(X_train), average='binary', pos_label=1, zero_division=0)}")
-    print(f"{model} Testing Accuracy: {model.score(X_test, y_test)}")
-    print(f"{model} Testing Precision: {precision_score(y_test, model.predict(X_test), average='binary', pos_label=1, zero_division=0)}")
-    print(f"{model} Testing Recall: {recall_score(y_test, model.predict(X_test), average='binary', pos_label=1, zero_division=0)}")
-    print(f"{model} Testing F1-score: {f1_score(y_test, model.predict(X_test), average='binary', pos_label=1, zero_division=0)}")
+def print_model_performance(name, train_metrics, test_metrics):
+    print(f"{name} Training Accuracy: {train_metrics['accuracy']:.4f}")
+    print(f"{name} Training Precision: {train_metrics['precision']:.4f}")
+    print(f"{name} Training Recall: {train_metrics['recall']:.4f}")
+    print(f"{name} Training F1-score: {train_metrics['f1']:.4f}")
+    print(f"{name} Testing Accuracy: {test_metrics['accuracy']:.4f}")
+    print(f"{name} Testing Precision: {test_metrics['precision']:.4f}")
+    print(f"{name} Testing Recall: {test_metrics['recall']:.4f}")
+    print(f"{name} Testing F1-score: {test_metrics['f1']:.4f}")
 
-def print_bigram_model_and_smoothing(model):
-    """
-    3. Bigram Model & Smoothing (Add-k)
-    Bigram vocabulary size: <integer>
-    Bigram unseen test transitions: <integer>
-    Bigram test perplexity: <value>
-    Bigram test perplexity (k=0.1): <value>
-    Bigram test perplexity (k=0.01): <value>
-    """
-    print(f"Bigram vocabulary size: {len(model['vocab'])}")
-    print(f"Bigram unseen test transitions: {model['unseen']}")
-    print(f"Bigram test perplexity: {model['perplexity']}")
-    print(f"Bigram test perplexity (k=0.1): {model['perplexity_k_0_1']}")
-    print(f"Bigram test perplexity (k=0.01): {model['perplexity_k_0_01']}")
+def print_bigram_model_and_smoothing(bigram_model, eval_k1, eval_k01, eval_k001):
+    # vocab from fit_bigram; unseen/perplexity from evaluate_bigram
+    print(f"Bigram vocabulary size: {len(bigram_model['vocab'])}")
+    print(f"Bigram unseen test transitions: {eval_k1['unseen']}")
+    print(f"Bigram test perplexity: {eval_k1['perplexity']:.4f}")
+    print(f"Bigram test perplexity (k=0.1): {eval_k01['perplexity']:.4f}")
+    print(f"Bigram test perplexity (k=0.01): {eval_k001['perplexity']:.4f}")
 
-#=============== HELPER FUNCTIONS ===============
+#=============== STEP BY STEP FUNCTIONS ===============
 def prepare_data(path, n_per_class=100000):
     """Return (train_df, test_df, stats), as specified in Section 1/interface."""
 
@@ -363,72 +342,71 @@ def evaluate_bigram(model, test_texts, k=1.0):
     perplexity = math.exp(-log_sum / n_tokens)
     return {"unseen": unseen, "n_tokens": n_tokens, "perplexity": perplexity}
 
-#=============== Unit Test Code  ===============
-def test_clean_and_preprocess():
-    # Local check from handout (Section 3). Do not call from run_experiment.
-    # Average length prints belong in run_experiment only (37 required lines).
-    s = "These pens aren't reliable."
-    cleaned = clean_review(s)
-    preprocessed = preprocess_review(cleaned)
-    expected_cleaned = "these pens are not reliable"
-    expected_preprocessed = "pen not reliable"
-    print(repr(cleaned))
-    print(repr(preprocessed))
-    if cleaned == expected_cleaned and preprocessed == expected_preprocessed:
-        print("PASSED: clean_review and preprocess_review")
-    else:
-        print("FAILED: clean_review and preprocess_review")
-        print(f"  expected cleaned: {expected_cleaned!r}")
-        print(f"  expected preprocessed: {expected_preprocessed!r}")
-
 #=============== MAIN FUNCTION ===============
 def run_experiment(path="data.tsv", n_per_class=100000,
                    lm_train_size=5000, lm_test_size=1000):
     """Run the pipeline, print the 37 required lines, and return None."""
 
-    # Check Path and Unit Test Code
-    test_clean_and_preprocess()
-    if path is None:
-        raise ValueError("Path is required")
-
     # 1. Dataset Preparation
     train_df, test_df, stats = prepare_data(path, n_per_class)
 
-    print_data_and_features(stats)
-    # ===============================
-
-    # 2. Data Cleaning - Take every review in the train_df and test_df and clean and preprocess it
+    # 2. Data Cleaning
+    train_df = train_df.copy()
+    test_df = test_df.copy()
     train_df["cleaned"] = train_df["review"].apply(clean_review)
     test_df["cleaned"] = test_df["review"].apply(clean_review)
 
-    # 3. Preprocessing - Preprocessing means removing stopwords and lemmatizing the words (simplifing text)
+    # 3. Preprocessing
     train_df["preprocessed"] = train_df["cleaned"].apply(preprocess_review)
     test_df["preprocessed"] = test_df["cleaned"].apply(preprocess_review)
 
+    avg_before_clean = train_df["review"].str.len().mean()
+    avg_after_clean = train_df["cleaned"].str.len().mean()
+    avg_before_pre = avg_after_clean  # must equal after cleaning
+    avg_after_pre = train_df["preprocessed"].str.len().mean()
+
     # 4. Feature Extraction
-    vectorizer, X_train, X_test = extract_features(train_df["preprocessed"], test_df["preprocessed"])
+    vectorizer, X_train, X_test = extract_features(
+        train_df["preprocessed"].tolist(), test_df["preprocessed"].tolist()
+    )
 
-    # ===============================
+    print_data_and_features(
+        stats,
+        avg_before_clean,
+        avg_after_clean,
+        avg_before_pre,
+        avg_after_pre,
+        X_train.shape,
+    )
+
     # 5. Models (Perceptron, Logistic Regression, Naive Bayes)
-    perceptron = train_model("Perceptron", X_train, train_df["label"])
-    logistic_regression = train_model("Logistic Regression", X_train, train_df["label"])
-    naive_bayes = train_model("Naive Bayes", X_train, train_df["label"])
-
-    print_model_performance(perceptron, X_train, train_df["label"], X_test, test_df["label"])
-    print_model_performance(logistic_regression, X_train, train_df["label"], X_test, test_df["label"])
-    print_model_performance(naive_bayes, X_train, train_df["label"], X_test, test_df["label"])
-
-    # ===============================
+    y_train = train_df["label"]
+    y_test = test_df["label"]
+    for name in ["Perceptron", "Logistic Regression", "Naive Bayes"]:
+        model = train_model(name, X_train, y_train)
+        train_metrics = evaluate_model(model, X_train, y_train)
+        test_metrics = evaluate_model(model, X_test, y_test)
+        print_model_performance(name, train_metrics, test_metrics)
 
     # 6. Bigram Model & Smoothing (Add-k)
+    # Use cleaned text (not preprocessed); skip empty; sample within each split
+    lm_train = (
+        train_df.loc[train_df["cleaned"] != "", "cleaned"]
+        .sample(n=lm_train_size, replace=False, random_state=42)
+        .tolist()
+    )
+    lm_test = (
+        test_df.loc[test_df["cleaned"] != "", "cleaned"]
+        .sample(n=lm_test_size, replace=False, random_state=42)
+        .tolist()
+    )
+    bigram_model = fit_bigram(lm_train)
+    eval_k1 = evaluate_bigram(bigram_model, lm_test, k=1.0)
+    eval_k01 = evaluate_bigram(bigram_model, lm_test, k=0.1)
+    eval_k001 = evaluate_bigram(bigram_model, lm_test, k=0.01)
+    print_bigram_model_and_smoothing(bigram_model, eval_k1, eval_k01, eval_k001)
 
-    # Print the 37 required lines
-
-    
-
-  
-
-    raise NotImplementedError
+    return None
 
 
 if __name__ == "__main__":
