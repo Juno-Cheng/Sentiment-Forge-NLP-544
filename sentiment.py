@@ -350,22 +350,22 @@ def run_experiment(path="data.tsv", n_per_class=100000,
     # 1. Dataset Preparation
     train_df, test_df, stats = prepare_data(path, n_per_class)
 
-    # 2. Data Cleaning
+    # 2. Data Cleaning - Remove HTML tags, URLs, and other unwanted characters
     train_df = train_df.copy()
     test_df = test_df.copy()
     train_df["cleaned"] = train_df["review"].apply(clean_review)
     test_df["cleaned"] = test_df["review"].apply(clean_review)
 
-    # 3. Preprocessing
+    # 3. Preprocessing - Remove stopwords and lemmatize the words (the, a, um, etc.)
     train_df["preprocessed"] = train_df["cleaned"].apply(preprocess_review)
     test_df["preprocessed"] = test_df["cleaned"].apply(preprocess_review)
 
-    avg_before_clean = train_df["review"].str.len().mean()
-    avg_after_clean = train_df["cleaned"].str.len().mean()
+    avg_before_clean = train_df["review"].str.len().mean() # ex. "This is a bad review?!?!?!" -> 10
+    avg_after_clean = train_df["cleaned"].str.len().mean()  # ex. "this is a bad review" -> lower punctuation and no special characters
     avg_before_pre = avg_after_clean  # must equal after cleaning
-    avg_after_pre = train_df["preprocessed"].str.len().mean()
+    avg_after_pre = train_df["preprocessed"].str.len().mean()  # ex. "bad review" -> removed stopwords and lemmatized
 
-    # 4. Feature Extraction
+    # 4. Feature Extraction - Convert the text into a matrix of TF-IDF features (words to values)
     vectorizer, X_train, X_test = extract_features(
         train_df["preprocessed"].tolist(), test_df["preprocessed"].tolist()
     )
@@ -376,16 +376,18 @@ def run_experiment(path="data.tsv", n_per_class=100000,
         avg_after_clean,
         avg_before_pre,
         avg_after_pre,
-        X_train.shape,
+        X_train.shape, 
+        # Since X-train is the matrix of TF-IDF features, \
+        # the shape is (number of reviews, number of unique words) - 200k * 80% of training
     )
 
     # 5. Models (Perceptron, Logistic Regression, Naive Bayes)
     y_train = train_df["label"]
     y_test = test_df["label"]
     for name in ["Perceptron", "Logistic Regression", "Naive Bayes"]:
-        model = train_model(name, X_train, y_train)
-        train_metrics = evaluate_model(model, X_train, y_train)
-        test_metrics = evaluate_model(model, X_test, y_test)
+        model = train_model(name, X_train, y_train) # train the model on the training data
+        train_metrics = evaluate_model(model, X_train, y_train) # evaluate the model on the training data
+        test_metrics = evaluate_model(model, X_test, y_test) # evaluate the model on the test data
         print_model_performance(name, train_metrics, test_metrics)
 
     # 6. Bigram Model & Smoothing (Add-k)
