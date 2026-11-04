@@ -21,7 +21,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
 
 #=============== Custom Functions ===============
-#--- prepare_data helpers (Section 1) ---
+#region Custom Functions
+#=============== prepare_data helpers (Section 1) ===============
+#region prepare_data helpers (Section 1)
 def prepare_data_read_data(path):  # read TSV; keep only review + rating columns
     df = pd.read_csv(
         path,
@@ -36,7 +38,7 @@ def prepare_data_read_data(path):  # read TSV; keep only review + rating columns
     return df
 
 def prepare_data_convert_and_remove_invalid_rows(df):
-    # convert the rating to a numeric value
+    # convert the rating to a numeric value or NaN if it is not a number
     df["rating"] = pd.to_numeric(df["rating"], errors="coerce")
 
     # filter out the rows where the review is empty or the rating is not between 1 and 5
@@ -88,8 +90,10 @@ def prepare_data_train_test_split(df, n_per_class):
         random_state=42,
     )
     return train_df, test_df
+#endregion
 
-#--- clean_review helpers (Section 2) ---
+#=============== clean_review helpers (Section 2) ===============
+#region clean_review helpers (Section 2)
 def clean_review_unescape_html(text):
     text = html.unescape(text)  # given by the handout
     text = text.lower()
@@ -113,8 +117,10 @@ def clean_review_keep_only_a_z_and_spaces_collapse_whitespace_runs_strip_ends(te
     text = re.sub(r"\s+", " ", text)
     text = text.strip()
     return text
+#endregion
 
-#--- preprocess_review helpers (Section 3) ---
+#=============== preprocess_review helpers (Section 3) ===============
+#region preprocess_review helpers (Section 3)
 _STOPWORDS = set(stopwords.words("english")) - {"no", "nor", "not"}
 _LEMMATIZER = WordNetLemmatizer()
 
@@ -133,8 +139,10 @@ def preprocess_review_join(tokens):
     # (c) join tokens with single spaces
     text = " ".join(tokens)
     return text
+#endregion
 
-#--- extract_features helpers (Section 4) ---
+#=============== extract_features / train_model helpers ===============
+#region extract_features / train_model helpers
 def extract_features_default(train_texts, test_texts):
     # defaults = unigrams, sublinear_tf=False, smooth IDF, L2
     vectorizer = TfidfVectorizer()
@@ -142,7 +150,7 @@ def extract_features_default(train_texts, test_texts):
     X_test = vectorizer.transform(test_texts)        # unseen/empty → zero row
     return vectorizer, X_train, X_test
 
-#--- train_model helpers (Section 5) ---
+#=============== train_model helpers (Section 5) ===============
 def train_model_perceptron(X_train, y_train):
     model = Perceptron(random_state=42, max_iter=1000, tol=1e-3)
     model.fit(X_train, y_train)
@@ -157,8 +165,11 @@ def train_model_naive_bayes(X_train, y_train):
     model = MultinomialNB(alpha=1.0)
     model.fit(X_train, y_train)
     return model
+#endregion
+#endregion
 
-#--- print functions (required 37 lines) ---
+#=============== print functions (required 37 lines) ===============
+#region print functions (required 37 lines)
 def print_data_and_features(stats, avg_before_clean, avg_after_clean,
                             avg_before_pre, avg_after_pre, tfidf_shape):
     print(f"Positive reviews: {stats['class_counts']['positive']}")
@@ -187,8 +198,12 @@ def print_bigram_model_and_smoothing(bigram_model, eval_k1, eval_k01, eval_k001)
     print(f"Bigram test perplexity: {eval_k1['perplexity']:.4f}")
     print(f"Bigram test perplexity (k=0.1): {eval_k01['perplexity']:.4f}")
     print(f"Bigram test perplexity (k=0.01): {eval_k001['perplexity']:.4f}")
+#endregion
 
 #=============== STEP BY STEP FUNCTIONS ===============
+#region STEP BY STEP FUNCTIONS
+#=============== prepare_data (Section 1) ===============
+#region prepare_data (Section 1)
 def prepare_data(path, n_per_class=100000):
     """Return (train_df, test_df, stats), as specified in Section 1/interface."""
 
@@ -341,8 +356,10 @@ def evaluate_bigram(model, test_texts, k=1.0):
 
     perplexity = math.exp(-log_sum / n_tokens)
     return {"unseen": unseen, "n_tokens": n_tokens, "perplexity": perplexity}
+#endregion
 
 #=============== MAIN FUNCTION ===============
+#region MAIN FUNCTION
 def run_experiment(path="data.tsv", n_per_class=100000,
                    lm_train_size=5000, lm_test_size=1000):
     """Run the pipeline, print the 37 required lines, and return None."""
@@ -409,6 +426,7 @@ def run_experiment(path="data.tsv", n_per_class=100000,
     print_bigram_model_and_smoothing(bigram_model, eval_k1, eval_k01, eval_k001)
 
     return None
+#endregion
 
 
 if __name__ == "__main__":
